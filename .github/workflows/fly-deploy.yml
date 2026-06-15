@@ -1,0 +1,25 @@
+name: Deploy to Fly.io
+
+# Deploys run on GitHub's runners (which can reach Fly), not from any sandbox.
+# Trigger on pushes to main, or manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Builds the Dockerfile on Fly's remote builder and releases it.
+      # The app + volume must already exist (one-time setup, see README).
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
