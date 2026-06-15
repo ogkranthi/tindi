@@ -151,7 +151,7 @@ export async function buildMemberInsights(
     gaps,
     opts.whoopContext ? `\nWearable (Whoop) context:\n${opts.whoopContext}` : "",
     "",
-    'Return JSON: { "summary": "2-3 sentence plain-language read of how the week is going for THEIR conditions", "recommendations": ["2-4 concrete, food-specific actions, each naming foods/dishes from their cuisines (Indian/Mediterranean/Mexican/American)"] }',
+    'Return JSON: { "summary": "2-3 sentence plain-language read of how the week is going for THEIR conditions", "recommendations": ["2-4 concrete, food-specific actions, each naming FAMILIAR everyday Telugu/Andhra/South-Indian home dishes (e.g. palakura pappu, ragi java, gongura pachadi, millet curd rice) — not fancy or Western names"] }',
   ]
     .filter(Boolean)
     .join("\n");
