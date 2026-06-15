@@ -62,6 +62,85 @@ export const SEED_FAMILY: Member[] = [
   },
 ];
 
-export const FAMILY_CUISINES = ["Indian", "Mediterranean", "Mexican", "American"];
+// This household eats everyday Telugu/Andhra home food. Plans should use familiar
+// home names (pappu, koora, vepudu, pulusu, charu, pachadi, tiffins) — not fancy
+// or restaurant-style names — and vary the dish day to day.
+export const FAMILY_CUISINES = ["Andhra-Telugu", "South Indian", "North Indian", "Continental"];
 
 export const FAMILY_HEALTHY_FOODS = ["fish", "chicken", "mutton", "nuts", "seeds"];
+
+/**
+ * A vocabulary of familiar home dishes the model should draw from and ROTATE so
+ * the week isn't the same pappu + koora every day. Grouped by meal role.
+ */
+export const FAMILY_HOME_DISHES = {
+  tiffins: [
+    "idli with sambar & chutney",
+    "plain dosa / masala dosa",
+    "pesarattu (green-gram dosa) with ginger chutney",
+    "upma",
+    "ravva pongal / ven pongal",
+    "uttapam",
+    "semiya (vermicelli) upma",
+    "atukulu (poha)",
+    "ragi dosa / ragi java",
+    "mysore bajji / punugulu (occasional)",
+    "chapati with a light curry",
+  ],
+  pappu: [
+    "tomato pappu",
+    "palakura pappu (spinach dal)",
+    "thotakura pappu (amaranth dal)",
+    "dosakaya pappu (cucumber dal)",
+    "mamidikaya pappu (raw mango dal, seasonal)",
+    "sorakaya pappu (bottle gourd dal)",
+    "kandi pappu (plain toor dal) with ghee",
+    "pappu charu",
+  ],
+  kooraVepudu: [
+    "bendakaya vepudu (okra fry)",
+    "beerakaya koora (ridge gourd)",
+    "aloo (potato) fry",
+    "cabbage koora",
+    "dondakaya vepudu (tindora fry)",
+    "vankaya koora (brinjal)",
+    "gutti vankaya (stuffed brinjal)",
+    "sorakaya koora (bottle gourd)",
+    "carrot-beans koora",
+    "chikkudukaya koora (broad beans)",
+  ],
+  nonVeg: [
+    "chicken curry",
+    "chicken pulusu",
+    "fish pulusu",
+    "fish fry (well-cooked)",
+    "mutton curry (weekend)",
+    "egg curry / egg pulusu",
+  ],
+  riceSides: [
+    "rice with sambar",
+    "rasam (charu) rice",
+    "perugu annam (curd rice)",
+    "pulihora (tamarind/lemon rice)",
+    "bagara annam",
+    "jeera rice",
+    "roti / chapati",
+    "millet (korralu/ragi) rice for low-GI meals",
+  ],
+  pachadiPodi: [
+    "gongura pachadi",
+    "tomato pachadi",
+    "dosakaya pachadi",
+    "idli podi with ghee/oil",
+    "curry-leaf or coriander podi",
+  ],
+  snacks: [
+    "seasonal fruit",
+    "majjiga (spiced buttermilk)",
+    "roasted chana / sprouts",
+    "soaked nuts & seeds",
+    "vegetable sundal",
+    "ragi malt / millet snack",
+  ],
+};
+
