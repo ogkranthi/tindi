@@ -7,6 +7,7 @@ export const SEED_FAMILY: Member[] = [
     id: "dad",
     name: "Dad",
     role: "adult",
+    conditions: ["hypothyroid"],
     healthNotes: [
       "Hypothyroid (thyroid condition) — favor selenium (brazil nuts, seeds), iodine-aware; limit large amounts of raw goitrogenic veg (raw kale, raw cabbage).",
       "Software developer — long sedentary stretches on weekdays.",
@@ -21,6 +22,9 @@ export const SEED_FAMILY: Member[] = [
     id: "mom",
     name: "Mom",
     role: "adult",
+    conditions: ["pregnancy", "prediabetes", "overweight"],
+    // ~4 months along as of 2026-06-15 → due roughly mid-November 2026.
+    pregnancyDueDate: "2026-11-15",
     healthNotes: [
       "Prediabetic — low-glycemic, controlled-carb meals; pair carbs with protein/fat/fiber.",
       "Overweight — portion-aware, satiating, high-fiber.",
@@ -43,6 +47,7 @@ export const SEED_FAMILY: Member[] = [
     name: "Toddler",
     role: "child",
     ageYears: 3,
+    conditions: ["picky-eater"],
     healthNotes: [
       "Picky eater, 3 years old — small portions, finger-friendly, mild spice, familiar shapes/textures.",
       "Use hidden-veggie techniques and repeat exposure to new foods.",

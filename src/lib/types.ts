@@ -23,12 +23,24 @@ export type Category = keyof WeeklyTargets;
 
 export const CATEGORIES: Category[] = ["veggies", "fruits", "protein", "grains", "treats"];
 
+/** Structured health conditions that drive nutrient targets + insights logic. */
+export type Condition =
+  | "pregnancy"
+  | "prediabetes"
+  | "overweight"
+  | "hypothyroid"
+  | "picky-eater";
+
 /** A person we plan and track for. */
 export interface Member {
   id: MemberId;
   name: string;
   role: "adult" | "child";
   ageYears?: number;
+  /** Machine-readable conditions that key nutrient targets + condition widgets. */
+  conditions: Condition[];
+  /** ISO date (yyyy-mm-dd) of the expected due date, when pregnant. Drives trimester. */
+  pregnancyDueDate?: string;
   /** Free-text health context fed to the AI (conditions, pregnancy, etc.). */
   healthNotes: string[];
   /** Foods to favor. */
@@ -96,4 +108,73 @@ export interface GroceryList {
   mealPlanId: string;
   weekStart: string;
   items: GroceryItem[];
+}
+
+// ---- Tracking & health intelligence ----
+
+/** A single thing eaten by a member on a day. */
+export interface FoodLog {
+  id: number;
+  memberId: MemberId;
+  logDate: string; // ISO yyyy-mm-dd
+  category: Category;
+  servings: number;
+  /** Specific food/meal name, when known (powers nutrition + variety). */
+  food: string | null;
+  /** Where the log came from. */
+  source: "plan" | "manual";
+  createdAt: string;
+}
+
+/** The nutrients Tindi reasons about. Macros + the micros our family cares about. */
+export interface NutrientVector {
+  calories: number;
+  protein: number; // g
+  fiber: number; // g
+  sugar: number; // g
+  folate: number; // mcg
+  iron: number; // mg
+  calcium: number; // mg
+  omega3: number; // mg (DHA/EPA + ALA)
+  selenium: number; // mcg
+  iodine: number; // mcg
+  /** Estimated glycemic load contribution (unitless). */
+  glycemicLoad: number;
+}
+
+export const NUTRIENT_KEYS: (keyof NutrientVector)[] = [
+  "calories",
+  "protein",
+  "fiber",
+  "sugar",
+  "folate",
+  "iron",
+  "calcium",
+  "omega3",
+  "selenium",
+  "iodine",
+  "glycemicLoad",
+];
+
+export const EMPTY_NUTRIENTS: NutrientVector = {
+  calories: 0,
+  protein: 0,
+  fiber: 0,
+  sugar: 0,
+  folate: 0,
+  iron: 0,
+  calcium: 0,
+  omega3: 0,
+  selenium: 0,
+  iodine: 0,
+  glycemicLoad: 0,
+};
+
+export interface MemberInsights {
+  memberId: MemberId;
+  weekStart: string;
+  summary: string;
+  recommendations: string[];
+  createdAt: string;
+  model: string;
 }

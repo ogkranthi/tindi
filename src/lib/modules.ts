@@ -1,0 +1,63 @@
+// Tindi's modules. Health is live; the rest are the family-OS roadmap.
+// Nav + the home launcher render from this registry so new modules drop in cheaply.
+
+export interface ModuleLink {
+  href: string;
+  label: string;
+}
+
+export interface AppModule {
+  id: string;
+  name: string;
+  icon: string;
+  status: "active" | "soon";
+  blurb: string;
+  /** Landing route for the module. */
+  href: string;
+  /** Sub-pages shown in the header nav when the module is active. */
+  links?: ModuleLink[];
+}
+
+export const MODULES: AppModule[] = [
+  {
+    id: "health",
+    name: "Health & Food",
+    icon: "🌿",
+    status: "active",
+    blurb: "Meal plans, grocery, daily tracking, and personalized health insights.",
+    href: "/health",
+    links: [
+      { href: "/health", label: "Insights" },
+      { href: "/track", label: "Track" },
+      { href: "/meal-plan", label: "Meal Plan" },
+      { href: "/grocery", label: "Grocery" },
+      { href: "/family", label: "Family" },
+    ],
+  },
+  {
+    id: "notes",
+    name: "Notes",
+    icon: "📝",
+    status: "soon",
+    blurb: "Shared family notes, reminders, and AI-organized lists.",
+    href: "/notes",
+  },
+  {
+    id: "subscriptions",
+    name: "Subscriptions",
+    icon: "🔁",
+    status: "soon",
+    blurb: "Track recurring services, renewal dates, and what they cost.",
+    href: "/subscriptions",
+  },
+  {
+    id: "finances",
+    name: "Family Finances",
+    icon: "💰",
+    status: "soon",
+    blurb: "Budgets, shared expenses, and money goals for the household.",
+    href: "/finances",
+  },
+];
+
+export const HEALTH_MODULE = MODULES.find((m) => m.id === "health")!;
