@@ -1,7 +1,7 @@
 # Fly.io config for Tindi. Rename `app` to your own globally-unique name before first deploy,
 # or just run `fly launch --copy-config --no-deploy` and it'll prompt you.
 app = "tindi"
-primary_region = "iad" # change to your nearest region, e.g. "lhr", "sin", "bom"
+primary_region = "bom" # Mumbai — closest to the family; change if you prefer elsewhere
 
 [build]
 
