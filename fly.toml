@@ -1,0 +1,29 @@
+# Fly.io config for Tindi. Rename `app` to your own globally-unique name before first deploy,
+# or just run `fly launch --copy-config --no-deploy` and it'll prompt you.
+app = "tindi"
+primary_region = "iad" # change to your nearest region, e.g. "lhr", "sin", "bom"
+
+[build]
+
+[env]
+  TINDI_DB_PATH = "/data/tindi.db"
+  PORT = "3000"
+  OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"
+  # Set the API key as a SECRET, not here:  fly secrets set OPENROUTER_API_KEY=sk-...
+
+# Persistent disk for the SQLite file. Survives deploys & restarts.
+[mounts]
+  source = "tindi_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
