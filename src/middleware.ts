@@ -21,6 +21,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Gate every page/route except Next internals and static assets.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Gate every page/route except Next internals, static assets, and the health probe.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"],
 };
