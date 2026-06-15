@@ -8,28 +8,52 @@ export interface ChatMessage {
   content: string;
 }
 
-export function defaultModel(): string {
-  return process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.6";
+/**
+ * The model chain to try, in order. OPENROUTER_MODEL may be a single slug or a
+ * comma-separated list. We keep a known-good fallback so a bad/unavailable
+ * primary slug never breaks the app.
+ */
+export function defaultModels(): string[] {
+  const env = process.env.OPENROUTER_MODEL;
+  const chain = env
+    ? env.split(",").map((s) => s.trim()).filter(Boolean)
+    : ["anthropic/claude-sonnet-4.5"];
+  // Always keep a broadly-available last resort.
+  if (!chain.includes("anthropic/claude-3.5-sonnet")) chain.push("anthropic/claude-3.5-sonnet");
+  return chain;
 }
 
-export class OpenRouterError extends Error {}
+export function defaultModel(): string {
+  return defaultModels()[0];
+}
+
+export class OpenRouterError extends Error {
+  /** When true, retrying a different model won't help (auth, credits, etc.). */
+  fatal: boolean;
+  constructor(message: string, fatal = false) {
+    super(message);
+    this.fatal = fatal;
+  }
+}
 
 interface ChatOptions {
   messages: ChatMessage[];
+  /** Force a single model (skips the fallback chain). */
   model?: string;
+  /** Override the fallback chain. */
+  models?: string[];
   temperature?: number;
   /** Ask the model to emit a JSON object. */
   json?: boolean;
+  /** Cap output tokens (raise for large structured responses). */
+  maxTokens?: number;
 }
 
-export async function chat({ messages, model, temperature = 0.6, json }: ChatOptions): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new OpenRouterError(
-      "OPENROUTER_API_KEY is not set. Add it to .env.local (see .env.example)."
-    );
-  }
-
+async function callModel(
+  apiKey: string,
+  model: string,
+  opts: ChatOptions
+): Promise<string> {
   const res = await fetch(BASE_URL, {
     method: "POST",
     headers: {
@@ -39,24 +63,68 @@ export async function chat({ messages, model, temperature = 0.6, json }: ChatOpt
       "X-Title": process.env.OPENROUTER_APP_NAME || "Tindi",
     },
     body: JSON.stringify({
-      model: model || defaultModel(),
-      temperature,
-      messages,
-      ...(json ? { response_format: { type: "json_object" } } : {}),
+      model,
+      temperature: opts.temperature ?? 0.6,
+      messages: opts.messages,
+      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
     }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new OpenRouterError(`OpenRouter request failed (${res.status}): ${text.slice(0, 500)}`);
+    const snippet = text.slice(0, 500);
+    // 401/403 = bad key, 402 = no credits — retrying another model won't help.
+    if (res.status === 401 || res.status === 403) {
+      throw new OpenRouterError(
+        `OpenRouter rejected the API key (${res.status}). Update the OPENROUTER_API_KEY secret. ${snippet}`,
+        true
+      );
+    }
+    if (res.status === 402) {
+      throw new OpenRouterError(
+        `OpenRouter account is out of credits (402). Add credits to your OpenRouter account. ${snippet}`,
+        true
+      );
+    }
+    throw new OpenRouterError(`Model "${model}" failed (${res.status}): ${snippet}`);
   }
 
   const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
   };
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) throw new OpenRouterError("OpenRouter returned an empty response.");
+  const choice = body.choices?.[0];
+  const content = choice?.message?.content;
+  if (!content) throw new OpenRouterError(`Model "${model}" returned an empty response.`);
+  if (choice?.finish_reason === "length") {
+    throw new OpenRouterError(`Model "${model}" response was cut off (hit token limit).`);
+  }
   return content;
+}
+
+export async function chat(opts: ChatOptions): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new OpenRouterError(
+      "OPENROUTER_API_KEY is not set. Add it to your environment (Fly secret / .env.local).",
+      true
+    );
+  }
+
+  const chain = opts.model ? [opts.model] : opts.models?.length ? opts.models : defaultModels();
+  let lastErr: unknown;
+  for (const model of chain) {
+    try {
+      return await callModel(apiKey, model, opts);
+    } catch (err) {
+      lastErr = err;
+      if (err instanceof OpenRouterError && err.fatal) throw err; // don't try other models
+      console.error(`[openrouter] model ${model} failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new OpenRouterError("All models failed to respond.");
 }
 
 /** Parse a JSON object from a model response, tolerating ```json fences. */

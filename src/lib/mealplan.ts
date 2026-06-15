@@ -40,6 +40,7 @@ export function buildPrompt(opts: GenerateOptions): { system: string; user: stri
     `Cuisines to draw from: ${cuisines.join(", ")}. Lean on the household's healthy staples: ${FAMILY_HEALTHY_FOODS.join(", ")}.`,
     `Categorize each meal's contribution using ONLY these tags: ${CATEGORIES.join(", ")}.`,
     "Return STRICT JSON only — no prose, no markdown. Quantities must be concrete (numbers + units) so a grocery list can be built from them. Assign every ingredient an 'aisle' from: produce, meat & seafood, dairy & eggs, pantry, grains & bread, nuts & seeds, spices, frozen, other.",
+    "Be concise to keep the response complete: keep 'description' to one short sentence, 'healthNotes' to one short clause, and list only the key shopping ingredients per meal.",
   ].join("\n");
 
   const schema = `{
@@ -134,6 +135,7 @@ export async function generateMealPlan(opts: GenerateOptions): Promise<MealPlan>
     ],
     json: true,
     temperature: 0.7,
+    maxTokens: 16000, // 7 days × ~5 meals with ingredients is a large response
   });
 
   const parsed = parseJsonObject<{ familyNotes?: string; days?: any[] }>(raw);
@@ -147,6 +149,10 @@ export async function generateMealPlan(opts: GenerateOptions): Promise<MealPlan>
       .filter((m: Meal | null): m is Meal => m !== null);
     return { day: name, date: addDays(start, idx), meals };
   });
+
+  if (days.every((d) => d.meals.length === 0)) {
+    throw new Error("The model returned no usable meals. Please try generating again.");
+  }
 
   return {
     id: randomUUID(),
