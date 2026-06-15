@@ -1,18 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { HEALTH_MODULE } from "@/lib/modules";
 
 export const metadata: Metadata = {
-  title: "Tindi — family health & food",
-  description: "AI meal plans, grocery lists, and health insights for the whole family.",
+  title: "Tindi — your family OS",
+  description: "AI meal plans, grocery lists, and personalized health insights for the family.",
 };
 
-const nav = [
-  { href: "/", label: "Home" },
-  { href: "/meal-plan", label: "Meal Plan" },
-  { href: "/grocery", label: "Grocery" },
-  { href: "/family", label: "Family" },
-];
+// The header surfaces the active module's sub-pages.
+const nav = [{ href: "/", label: "Home" }, ...(HEALTH_MODULE.links ?? [])];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getLatestMealPlan, listMembers } from "@/lib/db";
 import GeneratePlan from "@/components/GeneratePlan";
+import AteThisButton from "@/components/AteThisButton";
 import type { Member } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -102,9 +103,17 @@ export default function MealPlanPage() {
                           </p>
                         )}
 
-                        <p className="mt-2 text-xs text-stone-400">
-                          For: {meal.forMembers.map((id) => nameById.get(id) ?? id).join(", ")}
-                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <p className="text-xs text-stone-400">
+                            For: {meal.forMembers.map((id) => nameById.get(id) ?? id).join(", ")}
+                          </p>
+                          <AteThisButton
+                            date={day.date}
+                            food={meal.title}
+                            categories={meal.categories}
+                            forMembers={meal.forMembers}
+                          />
+                        </div>
                       </div>
                     ))}
                 </div>

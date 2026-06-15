@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { SEED_FAMILY } from "./family";
-import type { GroceryList, MealPlan, Member } from "./types";
+import type { FoodLog, GroceryList, MealPlan, Member, MemberInsights } from "./types";
 
 // Single shared connection. Next.js can re-import modules during dev (HMR),
 // so we cache the instance on globalThis to avoid reopening the file.
@@ -20,7 +20,26 @@ function open(): Database.Database {
   db.pragma("foreign_keys = ON");
   migrate(db);
   seed(db);
+  backfillMembers(db);
   return db;
+}
+
+// Members persisted before structured health fields existed get them backfilled
+// from the seed (without disturbing any user edits to other fields).
+function backfillMembers(db: Database.Database) {
+  const rows = db.prepare("SELECT id, data FROM members").all() as { id: string; data: string }[];
+  const update = db.prepare("UPDATE members SET data = ? WHERE id = ?");
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      const m = JSON.parse(row.data) as Partial<Member>;
+      if (Array.isArray(m.conditions)) continue;
+      const seed = SEED_FAMILY.find((s) => s.id === row.id);
+      m.conditions = seed?.conditions ?? [];
+      if (seed?.pregnancyDueDate && !m.pregnancyDueDate) m.pregnancyDueDate = seed.pregnancyDueDate;
+      update.run(JSON.stringify(m), row.id);
+    }
+  });
+  tx();
 }
 
 function migrate(db: Database.Database) {
@@ -45,7 +64,7 @@ function migrate(db: Database.Database) {
       FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE
     );
 
-    -- Foundation for the daily tracking + streaks slice (built next).
+    -- Daily food tracking — powers nutrition aggregation, variety, streaks.
     CREATE TABLE IF NOT EXISTS food_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       member_id TEXT NOT NULL,
@@ -57,11 +76,43 @@ function migrate(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_food_logs_member_date ON food_logs(member_id, log_date);
 
+    -- Cache of AI nutrient estimates, keyed by normalized food text (price each food once).
+    CREATE TABLE IF NOT EXISTS nutrition_cache (
+      key TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    -- Cached weekly AI insights per member.
+    CREATE TABLE IF NOT EXISTS insights (
+      member_id TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (member_id, week_start)
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
   `);
+
+  // Additive columns on food_logs (SQLite lacks ADD COLUMN IF NOT EXISTS).
+  addColumnIfMissing(db, "food_logs", "food", "TEXT");
+  addColumnIfMissing(db, "food_logs", "source", "TEXT NOT NULL DEFAULT 'manual'");
+}
+
+function addColumnIfMissing(
+  db: Database.Database,
+  table: string,
+  column: string,
+  decl: string
+) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
 }
 
 function seed(db: Database.Database) {
@@ -83,7 +134,11 @@ export function getDb(): Database.Database {
 
 export function listMembers(): Member[] {
   const rows = getDb().prepare("SELECT data FROM members").all() as { data: string }[];
-  return rows.map((r) => JSON.parse(r.data) as Member);
+  return rows.map((r) => {
+    const m = JSON.parse(r.data) as Member;
+    if (!Array.isArray(m.conditions)) m.conditions = []; // defensive for legacy rows
+    return m;
+  });
 }
 
 export function saveMember(member: Member): void {
@@ -141,4 +196,105 @@ export function getGroceryList(mealPlanId: string): GroceryList | null {
     .prepare("SELECT data FROM grocery_lists WHERE meal_plan_id = ?")
     .get(mealPlanId) as { data: string } | undefined;
   return row ? (JSON.parse(row.data) as GroceryList) : null;
+}
+
+// ---- Food logs ----
+
+export interface NewFoodLog {
+  memberId: string;
+  logDate: string;
+  category: string;
+  servings?: number;
+  food?: string | null;
+  source?: "plan" | "manual";
+}
+
+const ROW_TO_LOG = `id, member_id AS memberId, log_date AS logDate, category, servings,
+  food, COALESCE(source, 'manual') AS source, created_at AS createdAt`;
+
+export function insertFoodLog(entry: NewFoodLog): void {
+  getDb()
+    .prepare(
+      `INSERT INTO food_logs (member_id, log_date, category, servings, food, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      entry.memberId,
+      entry.logDate,
+      entry.category,
+      entry.servings ?? 1,
+      entry.food ?? null,
+      entry.source ?? "manual",
+      new Date().toISOString()
+    );
+}
+
+export function insertFoodLogs(entries: NewFoodLog[]): void {
+  const tx = getDb().transaction((rows: NewFoodLog[]) => {
+    for (const r of rows) insertFoodLog(r);
+  });
+  tx(entries);
+}
+
+export function getLogsForWeek(memberId: string, weekStart: string, weekEnd: string): FoodLog[] {
+  return getDb()
+    .prepare(
+      `SELECT ${ROW_TO_LOG} FROM food_logs
+       WHERE member_id = ? AND log_date >= ? AND log_date <= ?
+       ORDER BY log_date, id`
+    )
+    .all(memberId, weekStart, weekEnd) as FoodLog[];
+}
+
+export function getLogsForDate(memberId: string, date: string): FoodLog[] {
+  return getDb()
+    .prepare(`SELECT ${ROW_TO_LOG} FROM food_logs WHERE member_id = ? AND log_date = ? ORDER BY id`)
+    .all(memberId, date) as FoodLog[];
+}
+
+/** Distinct (lowercased) food names logged for a member strictly before `date`. */
+export function getDistinctFoodsBefore(memberId: string, date: string): Set<string> {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT LOWER(TRIM(food)) AS food FROM food_logs
+       WHERE member_id = ? AND log_date < ? AND food IS NOT NULL AND TRIM(food) <> ''`
+    )
+    .all(memberId, date) as { food: string }[];
+  return new Set(rows.map((r) => r.food));
+}
+
+// ---- Nutrition cache ----
+
+export function getCachedNutrition(key: string): string | null {
+  const row = getDb().prepare("SELECT data FROM nutrition_cache WHERE key = ?").get(key) as
+    | { data: string }
+    | undefined;
+  return row ? row.data : null;
+}
+
+export function putCachedNutrition(key: string, data: string): void {
+  getDb()
+    .prepare(
+      `INSERT INTO nutrition_cache (key, data, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET data = excluded.data`
+    )
+    .run(key, data, new Date().toISOString());
+}
+
+// ---- Insights ----
+
+export function getCachedInsights(memberId: string, weekStart: string): MemberInsights | null {
+  const row = getDb()
+    .prepare("SELECT data FROM insights WHERE member_id = ? AND week_start = ?")
+    .get(memberId, weekStart) as { data: string } | undefined;
+  return row ? (JSON.parse(row.data) as MemberInsights) : null;
+}
+
+export function saveInsights(insights: MemberInsights): void {
+  getDb()
+    .prepare(
+      `INSERT INTO insights (member_id, week_start, data, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(member_id, week_start) DO UPDATE SET data = excluded.data, created_at = excluded.created_at`
+    )
+    .run(insights.memberId, insights.weekStart, JSON.stringify(insights), insights.createdAt);
 }
