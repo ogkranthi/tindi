@@ -38,8 +38,8 @@ export const MODULES: AppModule[] = [
     id: "notes",
     name: "Notes",
     icon: "📝",
-    status: "soon",
-    blurb: "Shared family notes, reminders, and AI-organized lists.",
+    status: "active",
+    blurb: "Shared family notes, reminders, and lists — pin what matters.",
     href: "/notes",
   },
   {
@@ -52,10 +52,10 @@ export const MODULES: AppModule[] = [
   },
   {
     id: "finances",
-    name: "Family Finances",
+    name: "Finances",
     icon: "💰",
-    status: "soon",
-    blurb: "Budgets, shared expenses, and money goals for the household.",
+    status: "active",
+    blurb: "Track household expenses and income with AI budget insights.",
     href: "/finances",
   },
 ];
