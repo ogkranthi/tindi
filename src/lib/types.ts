@@ -74,6 +74,14 @@ export interface Meal {
   /** Coarse nutrition categories this meal contributes toward weekly targets. */
   categories: Category[];
   ingredients: Ingredient[];
+  /** Ordered cooking steps — a short home-cook recipe for the dish. */
+  steps: string[];
+  /**
+   * What to do ahead of time (typically the night before): soaking dals/legumes,
+   * fermenting idli/dosa batter, marinating, thawing, setting curd. Empty when
+   * nothing needs doing in advance.
+   */
+  prepAhead: string;
   /** Per-member or general health rationale, e.g. low-GI for mom, hidden veg for toddler. */
   healthNotes: string;
   prepMinutes: number;

@@ -103,6 +103,48 @@ export default function MealPlanPage() {
                           </p>
                         )}
 
+                        {meal.prepAhead && (
+                          <p className="mt-2 rounded-lg bg-indigo-50 p-2 text-xs font-medium text-indigo-700">
+                            🌙 Prep ahead — {meal.prepAhead}
+                          </p>
+                        )}
+
+                        {(meal.steps.length > 0 || meal.ingredients.length > 0) && (
+                          <details className="group mt-2">
+                            <summary className="cursor-pointer text-xs font-medium text-stone-500 hover:text-stone-700">
+                              👩‍🍳 Recipe &amp; steps
+                            </summary>
+                            <div className="mt-2 space-y-3 rounded-lg bg-stone-50 p-3">
+                              {meal.ingredients.length > 0 && (
+                                <div>
+                                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                                    Ingredients
+                                  </p>
+                                  <ul className="grid gap-0.5 text-xs text-stone-600 sm:grid-cols-2">
+                                    {meal.ingredients.map((ing, j) => (
+                                      <li key={j}>
+                                        {[ing.qty, ing.unit].filter(Boolean).join(" ")} {ing.item}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {meal.steps.length > 0 && (
+                                <div>
+                                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                                    Method
+                                  </p>
+                                  <ol className="list-decimal space-y-1 pl-4 text-xs text-stone-600">
+                                    {meal.steps.map((step, j) => (
+                                      <li key={j}>{step}</li>
+                                    ))}
+                                  </ol>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
+
                         <div className="mt-2 flex items-center justify-between gap-2">
                           <p className="text-xs text-stone-400">
                             For: {meal.forMembers.map((id) => nameById.get(id) ?? id).join(", ")}

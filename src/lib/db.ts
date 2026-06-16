@@ -181,6 +181,18 @@ export function saveMember(member: Member): void {
 
 // ---- Meal plans ----
 
+// Plans saved before recipe steps / make-ahead prep existed lack those fields.
+// Backfill safe defaults on read so the UI can rely on them.
+function hydrateMealPlan(plan: MealPlan): MealPlan {
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      if (!Array.isArray(meal.steps)) meal.steps = [];
+      if (typeof meal.prepAhead !== "string") meal.prepAhead = "";
+    }
+  }
+  return plan;
+}
+
 export function saveMealPlan(plan: MealPlan): void {
   getDb()
     .prepare(
@@ -194,14 +206,14 @@ export function getMealPlan(id: string): MealPlan | null {
   const row = getDb().prepare("SELECT data FROM meal_plans WHERE id = ?").get(id) as
     | { data: string }
     | undefined;
-  return row ? (JSON.parse(row.data) as MealPlan) : null;
+  return row ? hydrateMealPlan(JSON.parse(row.data) as MealPlan) : null;
 }
 
 export function getLatestMealPlan(): MealPlan | null {
   const row = getDb()
     .prepare("SELECT data FROM meal_plans ORDER BY created_at DESC LIMIT 1")
     .get() as { data: string } | undefined;
-  return row ? (JSON.parse(row.data) as MealPlan) : null;
+  return row ? hydrateMealPlan(JSON.parse(row.data) as MealPlan) : null;
 }
 
 export function listMealPlans(): { id: string; weekStart: string; createdAt: string }[] {
