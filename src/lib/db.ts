@@ -2,7 +2,15 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { SEED_FAMILY } from "./family";
-import type { FoodLog, GroceryList, MealPlan, Member, MemberInsights } from "./types";
+import type {
+  FoodLog,
+  GroceryList,
+  MealPlan,
+  Member,
+  MemberInsights,
+  Note,
+  Transaction,
+} from "./types";
 
 // Single shared connection. Next.js can re-import modules during dev (HMR),
 // so we cache the instance on globalThis to avoid reopening the file.
@@ -96,6 +104,28 @@ function migrate(db: Database.Database) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    -- Shared family notes. Pinned + updated_at drive ordering.
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);
+
+    -- Household money movements. Columns mirror the JSON for cheap filtering/sums.
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
   `);
 
   // Additive columns on food_logs (SQLite lacks ADD COLUMN IF NOT EXISTS).
@@ -297,4 +327,68 @@ export function saveInsights(insights: MemberInsights): void {
        ON CONFLICT(member_id, week_start) DO UPDATE SET data = excluded.data, created_at = excluded.created_at`
     )
     .run(insights.memberId, insights.weekStart, JSON.stringify(insights), insights.createdAt);
+}
+
+// ---- Notes ----
+
+export function listNotes(): Note[] {
+  const rows = getDb()
+    .prepare("SELECT data FROM notes ORDER BY pinned DESC, updated_at DESC")
+    .all() as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as Note);
+}
+
+export function getNote(id: string): Note | null {
+  const row = getDb().prepare("SELECT data FROM notes WHERE id = ?").get(id) as
+    | { data: string }
+    | undefined;
+  return row ? (JSON.parse(row.data) as Note) : null;
+}
+
+export function saveNote(note: Note): void {
+  getDb()
+    .prepare(
+      `INSERT INTO notes (id, data, pinned, updated_at, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data, pinned = excluded.pinned, updated_at = excluded.updated_at`
+    )
+    .run(note.id, JSON.stringify(note), note.pinned ? 1 : 0, note.updatedAt, note.createdAt);
+}
+
+export function deleteNote(id: string): void {
+  getDb().prepare("DELETE FROM notes WHERE id = ?").run(id);
+}
+
+// ---- Transactions ----
+
+export function listTransactions(fromDate?: string, toDate?: string): Transaction[] {
+  const conds: string[] = [];
+  const args: string[] = [];
+  if (fromDate) {
+    conds.push("date >= ?");
+    args.push(fromDate);
+  }
+  if (toDate) {
+    conds.push("date <= ?");
+    args.push(toDate);
+  }
+  const where = conds.length ? ` WHERE ${conds.join(" AND ")}` : "";
+  const rows = getDb()
+    .prepare(`SELECT data FROM transactions${where} ORDER BY date DESC, created_at DESC`)
+    .all(...args) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as Transaction);
+}
+
+export function saveTransaction(t: Transaction): void {
+  getDb()
+    .prepare(
+      `INSERT INTO transactions (id, date, type, category, amount, data, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET date = excluded.date, type = excluded.type,
+         category = excluded.category, amount = excluded.amount, data = excluded.data`
+    )
+    .run(t.id, t.date, t.type, t.category, t.amount, JSON.stringify(t), t.createdAt);
+}
+
+export function deleteTransaction(id: string): void {
+  getDb().prepare("DELETE FROM transactions WHERE id = ?").run(id);
 }

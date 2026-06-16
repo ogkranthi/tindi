@@ -178,3 +178,54 @@ export interface MemberInsights {
   createdAt: string;
   model: string;
 }
+
+// ---- Notes ----
+
+/** A shared family note: reminders, lists, anything worth keeping. */
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  /** Optional author/owner among the family. */
+  memberId?: MemberId;
+  tags: string[];
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Finances ----
+
+export type TransactionType = "expense" | "income";
+
+export const FINANCE_CATEGORIES = [
+  "groceries",
+  "dining",
+  "utilities",
+  "rent",
+  "childcare",
+  "health",
+  "transport",
+  "shopping",
+  "education",
+  "subscriptions",
+  "savings",
+  "income",
+  "other",
+] as const;
+
+export type FinanceCategory = (typeof FINANCE_CATEGORIES)[number];
+
+/** A single household money movement (expense or income), amounts in INR. */
+export interface Transaction {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  description: string;
+  /** Positive amount in INR; direction is given by `type`. */
+  amount: number;
+  type: TransactionType;
+  category: FinanceCategory;
+  /** Which family member paid / earned, when known. */
+  paidBy?: MemberId;
+  createdAt: string;
+}
