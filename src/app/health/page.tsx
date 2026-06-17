@@ -2,23 +2,12 @@ import Link from "next/link";
 import { getCachedInsights, listMembers } from "@/lib/db";
 import { getMemberNutrition, type MemberNutrition, type NutrientStat } from "@/lib/insights";
 import { weekStart } from "@/lib/dates";
-import type { Member, NutrientVector } from "@/lib/types";
+import { relevantNutrients } from "@/lib/health/targets";
+import type { NutrientVector } from "@/lib/types";
 import StatRing from "@/components/StatRing";
 import InsightsPanel from "@/components/InsightsPanel";
 
 export const dynamic = "force-dynamic";
-
-// Which nutrient rings matter most for a member, given their conditions.
-function relevantKeys(member: Member): (keyof NutrientVector)[] {
-  const keys = new Set<keyof NutrientVector>(["protein", "fiber"]);
-  if (member.conditions.includes("pregnancy"))
-    ["folate", "iron", "calcium", "omega3"].forEach((k) => keys.add(k as keyof NutrientVector));
-  if (member.conditions.includes("prediabetes"))
-    ["glycemicLoad", "sugar"].forEach((k) => keys.add(k as keyof NutrientVector));
-  if (member.conditions.includes("hypothyroid"))
-    ["selenium", "iodine"].forEach((k) => keys.add(k as keyof NutrientVector));
-  return [...keys];
-}
 
 function stat(n: MemberNutrition, key: keyof NutrientVector): NutrientStat {
   return n.stats.find((s) => s.key === key)!;
@@ -60,7 +49,7 @@ export default async function HealthPage() {
 
       <div className="space-y-5">
         {data.map(({ member, nutrition, insights }) => {
-          const keys = relevantKeys(member);
+          const keys = relevantNutrients(member);
           return (
             <section key={member.id} className="card p-5">
               <div className="flex flex-wrap items-center gap-2">
