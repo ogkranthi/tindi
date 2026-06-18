@@ -3,12 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { SEED_FAMILY } from "./family";
 import type {
+  ActivityMark,
   FoodLog,
   GroceryList,
   MealPlan,
   Member,
   MemberInsights,
   Note,
+  ToddlerActivity,
+  ToddlerPlan,
   Transaction,
 } from "./types";
 
@@ -126,6 +129,31 @@ function migrate(db: Database.Database) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+
+    -- Weekly toddler play/learning plans (full plan stored as JSON).
+    CREATE TABLE IF NOT EXISTS toddler_plans (
+      id TEXT PRIMARY KEY,
+      week_start TEXT NOT NULL,
+      child_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_toddler_plans_child ON toddler_plans(child_id, created_at);
+
+    -- "We did this!" + favorite marks on individual activities. Stores an activity
+    -- snapshot so favorites/journal survive regenerating the plan.
+    CREATE TABLE IF NOT EXISTS activity_marks (
+      plan_id TEXT NOT NULL,
+      activity_id TEXT NOT NULL,
+      child_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      done_at TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (plan_id, activity_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_activity_marks_child ON activity_marks(child_id);
   `);
 
   // Additive columns on food_logs (SQLite lacks ADD COLUMN IF NOT EXISTS).
@@ -177,6 +205,11 @@ export function saveMember(member: Member): void {
       "INSERT INTO members (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data"
     )
     .run(member.id, JSON.stringify(member));
+}
+
+/** Members we plan toddler activities for (the children of the household). */
+export function getChildMembers(): Member[] {
+  return listMembers().filter((m) => m.role === "child");
 }
 
 // ---- Meal plans ----
@@ -403,4 +436,123 @@ export function saveTransaction(t: Transaction): void {
 
 export function deleteTransaction(id: string): void {
   getDb().prepare("DELETE FROM transactions WHERE id = ?").run(id);
+}
+
+// ---- Toddler plans ----
+
+export function saveToddlerPlan(plan: ToddlerPlan): void {
+  getDb()
+    .prepare(
+      `INSERT INTO toddler_plans (id, week_start, child_id, data, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET week_start = excluded.week_start, child_id = excluded.child_id, data = excluded.data`
+    )
+    .run(plan.id, plan.weekStart, plan.childId, JSON.stringify(plan), plan.createdAt);
+}
+
+export function getToddlerPlan(id: string): ToddlerPlan | null {
+  const row = getDb().prepare("SELECT data FROM toddler_plans WHERE id = ?").get(id) as
+    | { data: string }
+    | undefined;
+  return row ? (JSON.parse(row.data) as ToddlerPlan) : null;
+}
+
+export function getLatestToddlerPlan(childId: string): ToddlerPlan | null {
+  const row = getDb()
+    .prepare("SELECT data FROM toddler_plans WHERE child_id = ? ORDER BY created_at DESC LIMIT 1")
+    .get(childId) as { data: string } | undefined;
+  return row ? (JSON.parse(row.data) as ToddlerPlan) : null;
+}
+
+// ---- Activity marks (done / favorite) ----
+
+/** Toggle one field (done or favorite) on an activity, upserting a snapshot. */
+export function setActivityMark(
+  planId: string,
+  activityId: string,
+  childId: string,
+  field: "done" | "favorite",
+  value: boolean,
+  activity: ToddlerActivity
+): ActivityMark {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = db
+    .prepare("SELECT data FROM activity_marks WHERE plan_id = ? AND activity_id = ?")
+    .get(planId, activityId) as { data: string } | undefined;
+
+  const mark: ActivityMark = existing
+    ? (JSON.parse(existing.data) as ActivityMark)
+    : {
+        planId,
+        activityId,
+        childId,
+        activity,
+        done: false,
+        favorite: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+  // Always refresh the snapshot in case the activity text changed.
+  mark.activity = activity;
+  mark.childId = childId;
+  if (field === "done") {
+    mark.done = value;
+    mark.doneAt = value ? now : undefined;
+  } else {
+    mark.favorite = value;
+  }
+  mark.updatedAt = now;
+
+  db.prepare(
+    `INSERT INTO activity_marks (plan_id, activity_id, child_id, data, done, favorite, done_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(plan_id, activity_id) DO UPDATE SET
+       child_id = excluded.child_id, data = excluded.data, done = excluded.done,
+       favorite = excluded.favorite, done_at = excluded.done_at, updated_at = excluded.updated_at`
+  ).run(
+    planId,
+    activityId,
+    childId,
+    JSON.stringify(mark),
+    mark.done ? 1 : 0,
+    mark.favorite ? 1 : 0,
+    mark.doneAt ?? null,
+    mark.updatedAt
+  );
+
+  return mark;
+}
+
+/** Marks for a plan, keyed by activityId — for rendering current done/favorite state. */
+export function getMarksForPlan(planId: string): Map<string, ActivityMark> {
+  const rows = getDb()
+    .prepare("SELECT data FROM activity_marks WHERE plan_id = ?")
+    .all(planId) as { data: string }[];
+  const map = new Map<string, ActivityMark>();
+  for (const r of rows) {
+    const m = JSON.parse(r.data) as ActivityMark;
+    map.set(m.activityId, m);
+  }
+  return map;
+}
+
+/** Completed activities for a child, newest first — the keepsake journal. */
+export function listDoneActivities(childId: string): ActivityMark[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT data FROM activity_marks WHERE child_id = ? AND done = 1 ORDER BY done_at DESC"
+    )
+    .all(childId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as ActivityMark);
+}
+
+/** Favorited activities for a child, newest first. */
+export function listFavoriteActivities(childId: string): ActivityMark[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT data FROM activity_marks WHERE child_id = ? AND favorite = 1 ORDER BY updated_at DESC"
+    )
+    .all(childId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as ActivityMark);
 }
