@@ -58,7 +58,9 @@ export function buildPrompt(opts: GenerateOptions): { system: string; user: stri
     "Time-saving: cook ONCE for the whole family with simple per-person tweaks (mild portion for toddler, millet rice for mom), reuse vegetables across the week, keep weeknight prep realistic. Weekends can be more involved (Dad plays cricket Sat/Sun — heartier).",
     `Categorize each meal's contribution using ONLY these tags: ${CATEGORIES.join(", ")}.`,
     "Return STRICT JSON only — no prose, no markdown. Quantities must be concrete (numbers + units) so a grocery list can be built from them. Assign every ingredient an 'aisle' from: produce, meat & seafood, dairy & eggs, pantry, grains & bread, nuts & seeds, spices, frozen, other.",
-    "Be concise to keep the response complete: keep 'description' to one short sentence, 'healthNotes' to one short clause, and list only the key shopping ingredients per meal. Give a realistic prepMinutes for a home cook.",
+    "RECIPE: give 'steps' — 3 to 6 short, numbered-style cooking instructions a home cook can follow (e.g. 'Pressure cook toor dal 3 whistles', 'Temper mustard, jeera, curry leaves, dry red chilli', 'Add tomatoes and turmeric, simmer until soft'). Keep each step to one line.",
+    "MAKE-AHEAD: give 'prepAhead' — what must be done in advance, almost always the night before, so the morning/evening cook isn't blocked. Use it for soaking dals/legumes (chana, rajma, urad), fermenting idli/dosa/pesarattu/dhokla batter, marinating non-veg, thawing frozen items, or setting curd. Write it as a short actionable note like 'Night before: soak 1 cup chana in plenty of water'. If the dish needs NO advance prep, set prepAhead to an empty string.",
+    "Be concise to keep the response complete: keep 'description' to one short sentence, 'healthNotes' to one short clause, and list only the key shopping ingredients per meal. Give a realistic prepMinutes for a home cook (this is active cook time, NOT overnight soaking/fermenting).",
   ].join("\n");
 
   const schema = `{
@@ -77,6 +79,12 @@ export function buildPrompt(opts: GenerateOptions): { system: string; user: stri
           "prepMinutes": 25,
           "tags": ["low-GI","high-protein","leftover-friendly", ...],
           "healthNotes": "why this fits the family (call out per-person tweaks)",
+          "prepAhead": "Night before: soak 1 cup chana — or \"\" if nothing is needed in advance",
+          "steps": [
+            "Pressure cook toor dal with turmeric for 3 whistles",
+            "Temper mustard, jeera, curry leaves and dry red chilli in ghee",
+            "Add tomatoes, simmer until soft, then mix in the dal and salt"
+          ],
           "ingredients": [
             { "item": "salmon fillet", "qty": "500", "unit": "g", "aisle": "meat & seafood" }
           ]
@@ -127,6 +135,9 @@ function normalizeMeal(raw: any, memberIds: string[]): Meal | null {
   const forMembers = Array.isArray(raw.forMembers)
     ? raw.forMembers.filter((id: any) => memberIds.includes(id))
     : memberIds;
+  const steps = Array.isArray(raw.steps)
+    ? raw.steps.map((s: any) => String(s).trim()).filter(Boolean)
+    : [];
   return {
     slot,
     title: String(raw.title),
@@ -135,6 +146,8 @@ function normalizeMeal(raw: any, memberIds: string[]): Meal | null {
     forMembers: forMembers.length ? forMembers : memberIds,
     categories,
     ingredients,
+    steps,
+    prepAhead: String(raw.prepAhead ?? "").trim(),
     healthNotes: String(raw.healthNotes ?? ""),
     prepMinutes: Number.isFinite(raw.prepMinutes) ? Number(raw.prepMinutes) : 0,
     tags: Array.isArray(raw.tags) ? raw.tags.map(String) : [],

@@ -35,6 +35,20 @@ export const MODULES: AppModule[] = [
     ],
   },
   {
+    id: "toddler",
+    name: "Toddler Time",
+    icon: "🧸",
+    status: "active",
+    blurb: "Age-appropriate games, learning & weekend adventures for your little one.",
+    href: "/toddler",
+    links: [
+      { href: "/toddler", label: "This Week" },
+      { href: "/toddler/stories", label: "Stories" },
+      { href: "/toddler/favorites", label: "Favorites" },
+      { href: "/toddler/journal", label: "Journal" },
+    ],
+  },
+  {
     id: "notes",
     name: "Notes",
     icon: "📝",

@@ -21,6 +21,24 @@ export const NUTRIENT_META: Record<
   glycemicLoad: { label: "Glycemic load", unit: "GL", direction: "down" },
 };
 
+/**
+ * Which nutrients matter most for a member, given role + conditions. The core
+ * "is this enough food?" signals (calories, protein, fiber) apply to everyone;
+ * conditions add their key micros, and children add growth nutrients.
+ */
+export function relevantNutrients(member: Member): (keyof NutrientVector)[] {
+  const keys = new Set<keyof NutrientVector>(["calories", "protein", "fiber"]);
+  if (member.role === "child")
+    (["iron", "calcium"] as (keyof NutrientVector)[]).forEach((k) => keys.add(k)); // growth
+  if (member.conditions.includes("pregnancy"))
+    (["folate", "iron", "calcium", "omega3"] as (keyof NutrientVector)[]).forEach((k) => keys.add(k));
+  if (member.conditions.includes("prediabetes"))
+    (["glycemicLoad", "sugar"] as (keyof NutrientVector)[]).forEach((k) => keys.add(k)); // ceilings
+  if (member.conditions.includes("hypothyroid"))
+    (["selenium", "iodine"] as (keyof NutrientVector)[]).forEach((k) => keys.add(k));
+  return [...keys];
+}
+
 /** Gestational status derived from an expected due date. */
 export function trimesterFromDueDate(
   dueDate: string,

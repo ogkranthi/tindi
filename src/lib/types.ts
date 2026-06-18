@@ -74,6 +74,14 @@ export interface Meal {
   /** Coarse nutrition categories this meal contributes toward weekly targets. */
   categories: Category[];
   ingredients: Ingredient[];
+  /** Ordered cooking steps — a short home-cook recipe for the dish. */
+  steps: string[];
+  /**
+   * What to do ahead of time (typically the night before): soaking dals/legumes,
+   * fermenting idli/dosa batter, marinating, thawing, setting curd. Empty when
+   * nothing needs doing in advance.
+   */
+  prepAhead: string;
   /** Per-member or general health rationale, e.g. low-GI for mom, hidden veg for toddler. */
   healthNotes: string;
   prepMinutes: number;
@@ -193,6 +201,117 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
 }
+
+// ---- Toddler Time ----
+
+/** Where an activity happens. */
+export type ActivitySetting = "indoor" | "outdoor" | "either";
+
+/** Developmental skill an activity builds — drives the balance of a week. */
+export type ActivityDomain =
+  | "gross-motor"
+  | "fine-motor"
+  | "language"
+  | "cognitive"
+  | "social-emotional"
+  | "creativity"
+  | "sensory";
+
+export const ACTIVITY_DOMAINS: ActivityDomain[] = [
+  "gross-motor",
+  "fine-motor",
+  "language",
+  "cognitive",
+  "social-emotional",
+  "creativity",
+  "sensory",
+];
+
+/** One play/learning activity for a young child. */
+export interface ToddlerActivity {
+  /** Stable within a saved plan (e.g. "d2-a1" / "we-0"); assigned at normalize. */
+  id: string;
+  title: string;
+  setting: ActivitySetting;
+  /** Developmental skills this activity grows. */
+  domains: ActivityDomain[];
+  description: string;
+  /** How to play it — a few short steps. */
+  steps: string[];
+  /** Common household items needed. */
+  materials: string[];
+  /** The growth / educational "why". */
+  learningGoal: string;
+  /** A tip to extend or simplify the activity. */
+  caregiverTip: string;
+  /** Choking / heat / sun / supervision note; "" when nothing special. */
+  safetyNote: string;
+  durationMinutes: number;
+  tags: string[];
+}
+
+export interface ToddlerDay {
+  day: string; // e.g. "Monday"
+  date: string; // ISO yyyy-mm-dd
+  activities: ToddlerActivity[];
+}
+
+export interface ToddlerPlan {
+  id: string;
+  weekStart: string; // ISO yyyy-mm-dd (Monday)
+  childId: MemberId;
+  childName: string;
+  ageYears: number;
+  season: string; // e.g. "summer"
+  theme: string; // weekly theme
+  overview: string; // parent-facing intro
+  /** Season-specific safety reminders (heat, sun, hydration). */
+  summerTips: string[];
+  days: ToddlerDay[]; // 7 days
+  /** Bigger weekend adventures / outings / projects. */
+  weekendIdeas: ToddlerActivity[];
+  createdAt: string;
+  model: string;
+}
+
+/**
+ * A done and/or favorite mark on a single activity. Stores a snapshot of the
+ * activity so favorites and the journal survive regenerating the weekly plan.
+ */
+export interface ActivityMark {
+  planId: string;
+  activityId: string;
+  childId: MemberId;
+  activity: ToddlerActivity;
+  done: boolean;
+  doneAt?: string;
+  favorite: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A short, age-appropriate bedtime/playtime story generated for the child. */
+export interface ToddlerStory {
+  id: string;
+  childId: MemberId;
+  childName: string;
+  ageYears: number;
+  /** The animal/character the story stars, e.g. "cow", "duck". */
+  animal: string;
+  title: string;
+  /** Story text as short paragraphs. */
+  paragraphs: string[];
+  /** A short, gentle takeaway for the child. */
+  moral: string;
+  /** A fun repeated sound/refrain for read-aloud, e.g. "Moo moo!". "" if none. */
+  refrain: string;
+  favorite: boolean;
+  createdAt: string;
+  model: string;
+}
+
+/** Animals this household's child loves — quick-picks for story generation. */
+export const FAVORITE_STORY_ANIMALS = ["cow", "pig", "duck", "horse"] as const;
 
 // ---- Finances ----
 

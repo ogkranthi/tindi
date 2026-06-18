@@ -7,7 +7,7 @@ import {
   type NutrientVector,
 } from "./types";
 
-function normalizeKey(food: string): string {
+export function normalizeKey(food: string): string {
   return food.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
