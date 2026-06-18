@@ -290,6 +290,29 @@ export interface ActivityMark {
   updatedAt: string;
 }
 
+/** A short, age-appropriate bedtime/playtime story generated for the child. */
+export interface ToddlerStory {
+  id: string;
+  childId: MemberId;
+  childName: string;
+  ageYears: number;
+  /** The animal/character the story stars, e.g. "cow", "duck". */
+  animal: string;
+  title: string;
+  /** Story text as short paragraphs. */
+  paragraphs: string[];
+  /** A short, gentle takeaway for the child. */
+  moral: string;
+  /** A fun repeated sound/refrain for read-aloud, e.g. "Moo moo!". "" if none. */
+  refrain: string;
+  favorite: boolean;
+  createdAt: string;
+  model: string;
+}
+
+/** Animals this household's child loves — quick-picks for story generation. */
+export const FAVORITE_STORY_ANIMALS = ["cow", "pig", "duck", "horse"] as const;
+
 // ---- Finances ----
 
 export type TransactionType = "expense" | "income";

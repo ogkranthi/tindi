@@ -43,6 +43,7 @@ export const MODULES: AppModule[] = [
     href: "/toddler",
     links: [
       { href: "/toddler", label: "This Week" },
+      { href: "/toddler/stories", label: "Stories" },
       { href: "/toddler/favorites", label: "Favorites" },
       { href: "/toddler/journal", label: "Journal" },
     ],

@@ -12,6 +12,7 @@ import type {
   Note,
   ToddlerActivity,
   ToddlerPlan,
+  ToddlerStory,
   Transaction,
 } from "./types";
 
@@ -154,6 +155,16 @@ function migrate(db: Database.Database) {
       PRIMARY KEY (plan_id, activity_id)
     );
     CREATE INDEX IF NOT EXISTS idx_activity_marks_child ON activity_marks(child_id);
+
+    -- AI-generated short stories for the child (full story stored as JSON).
+    CREATE TABLE IF NOT EXISTS toddler_stories (
+      id TEXT PRIMARY KEY,
+      child_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_toddler_stories_child ON toddler_stories(child_id, created_at);
   `);
 
   // Additive columns on food_logs (SQLite lacks ADD COLUMN IF NOT EXISTS).
@@ -555,4 +566,35 @@ export function listFavoriteActivities(childId: string): ActivityMark[] {
     )
     .all(childId) as { data: string }[];
   return rows.map((r) => JSON.parse(r.data) as ActivityMark);
+}
+
+// ---- Toddler stories ----
+
+export function saveToddlerStory(story: ToddlerStory): void {
+  getDb()
+    .prepare(
+      `INSERT INTO toddler_stories (id, child_id, data, favorite, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET data = excluded.data, favorite = excluded.favorite`
+    )
+    .run(story.id, story.childId, JSON.stringify(story), story.favorite ? 1 : 0, story.createdAt);
+}
+
+export function getToddlerStory(id: string): ToddlerStory | null {
+  const row = getDb().prepare("SELECT data FROM toddler_stories WHERE id = ?").get(id) as
+    | { data: string }
+    | undefined;
+  return row ? (JSON.parse(row.data) as ToddlerStory) : null;
+}
+
+export function listToddlerStories(childId: string): ToddlerStory[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT data FROM toddler_stories WHERE child_id = ? ORDER BY favorite DESC, created_at DESC"
+    )
+    .all(childId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as ToddlerStory);
+}
+
+export function deleteToddlerStory(id: string): void {
+  getDb().prepare("DELETE FROM toddler_stories WHERE id = ?").run(id);
 }
